@@ -2,8 +2,8 @@
 This is a DSA collaboration for project 3 of creating a interface and using a selected Data Structure and/or Algorithm. 
 Collaborators are  -Trinity Saunders, Pamela Moriarty and Elizabeth Marie Kallman
 
-# Instructions for installing tkinter- In your python terminal,
-run command python -m tkinter and pip install pillow. Pillow helps to resize the gui
+# What to install
+In your python terminal run command python -m tkinter and pip install pillow. Pillow helps to resize the gui
 It comes pre-installed due to having python already installed.
 The only way to contribute to the repository is to first clone the repo. I recommend using github desktop for simplicity but using git in the terminal is also an option
 
