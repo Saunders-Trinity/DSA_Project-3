@@ -80,6 +80,7 @@ def dijkstra(graph: Dict[int, List[Tuple[int, float]]], start: int, target: int 
 def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, target: int = -1) -> List[Tuple[int, int]]:
     import math
     edge_list = []
+
     # from node = u, to node = v, weight = w
     for u in graph:
         for v, w in graph[u]:
@@ -89,24 +90,31 @@ def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, target: 
     distance = {}
     previous = {}
 
-    for node in graph:
+    nodes = set(graph.keys())
+    for edges in graph.values():
+        for v, _ in edges:
+            nodes.add(v)
+
+    for node in nodes:
         distance[node] = math.inf
         previous[node] = -1
     distance[start] = 0
 
-    # Relax edges repeatedly
-    for i in range(len(graph) - 1):
+    # Relax edges repeatedly with early stopping
+    for i in range(len(nodes) - 1):
+        updated = False
         for u, v, w in edge_list:
             if distance[u] + w < distance[v]:
                 distance[v] = distance[u] + w
                 previous[v] = u
+                updated = True
+        if not updated:
+            break  # No update, optimal solution reached
 
     # Check for negative cycles
     for u, v, w in edge_list:
         if distance[u] + w < distance[v]:
             raise ValueError("Negative weight cycle detected.")
-            # print("Negative weight cycle detected.")
-            # return []
 
     # If yes to specific node path, find path and build path edges
     if target != -1:
@@ -118,7 +126,7 @@ def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, target: 
         print(" -> ".join(map(str, reversed(path))))
         return buildPathEdges(target, previous)
 
-    # If no to specific node path, print shortest distance to all reachable nodes from start node
+    # Print shortest distance to all reachable nodes from start node
     for node in graph:
         if distance[node] == math.inf:
             continue
