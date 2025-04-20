@@ -231,6 +231,7 @@ def main():
         else:
             print("Compare only works with specific start and end nodes.")
     else:
+
         print("That's not valid input.")
 
 if __name__ == "__main__":
