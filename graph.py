@@ -1,266 +1,237 @@
+from typing import Dict, List, Tuple
 import csv
 import heapq
-from typing import Dict, List, Tuple, Set
+import math
+import folium
+import webbrowser
+import os
 
 # Build a list of edges as tuples by backtracking using previousNode dictionary
-def buildPathEdges(nodeID: int, previousNode: Dict[int, int]) -> List[Tuple[int, int]]:
+def buildPathEdges(node, prev):
     pathEdges = []
-    while nodeID != -1 and previousNode.get(nodeID, -1) != -1:
-        pathEdges.append((previousNode[nodeID], nodeID))
-        nodeID = previousNode[nodeID]
+    while node != -1 and prev.get(node, -1) != -1:
+        pathEdges.append((prev[node], node))
+        node = prev[node]
     return pathEdges
 
 # Build a path as a list of nodes from start to the nodeID
-def buildPath(nodeID: int, previousNode: Dict[int, int]) -> List[int]:
+def buildPath(nodeID, previous):
     path = []
     while nodeID != -1:
         path.append(nodeID)
-        nodeID = previousNode.get(nodeID, -1)
+        nodeID = previous.get(nodeID, -1)
+    path.reverse()
     return path
 
-######### Citation goes here
-def dijkstra(graph: Dict[int, List[Tuple[int, float]]], start: int, target: int = -1) -> List[Tuple[int, int]]:
-    import math
+# Path to overlay on the map
+def pathOnMap(nodes_file, path, output_file='webPathMap.html'):
+    nodes = {}
+    with open(nodes_file, newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            node_id = int(row['id'])
+            lat = float(row['latitude'])
+            lon = float(row['longitude'])
+            nodes[node_id] = (lat, lon)
 
-    # Initiate paths and distances
-    dist = {}
-    visited = {}
-    prev = {}
+    if len(path) == 0:
+        print("No path.")
+        return
 
-    for node in graph:
-        dist[node] = math.inf
-        visited[node] = False
-        prev[node] = -1
+    coords = [nodes[node] for node in path if node in nodes]
+    m = folium.Map(tiles='OpenStreetMap')
+    m.fit_bounds(coords)
+
+    folium.PolyLine(coords, color='blue', weight=5, opacity=0.8).add_to(m)
+    folium.Marker(location=nodes[path[0]], icon=folium.Icon(color='green')).add_to(m)
+    folium.Marker(location=nodes[path[-1]], icon=folium.Icon(color='red')).add_to(m)
+
+    m.save(output_file)
+    webbrowser.open('file://' + os.path.realpath(output_file))
+
+### Put both paths on the map, taken from RealPython
+def comparePathsOnMap(nodes_file, path1, path2, output_file='comparisonMap.html'):
+    nodes = {}
+    with open(nodes_file, newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            node_id = int(row['id'])
+            lat = float(row['latitude'])
+            lon = float(row['longitude'])
+            nodes[node_id] = (lat, lon)
+
+    if not path1 and not path2:
+        print("No paths to visualize.")
+        return
+
+    coords_all = []
+    if path1:
+        coords_all.extend([nodes[n] for n in path1 if n in nodes])
+    if path2:
+        coords_all.extend([nodes[n] for n in path2 if n in nodes])
+
+    m = folium.Map()
+    m.fit_bounds(coords_all)
+
+    if path1:
+        coords1 = [nodes[n] for n in path1 if n in nodes]
+        folium.PolyLine(coords1, color='blue', weight=6, opacity=0.9, tooltip="Dijkstra").add_to(m)
+
+    if path2:
+        coords2 = [nodes[n] for n in path2 if n in nodes]
+        folium.PolyLine(coords2, color='red', weight=4, opacity=0.8, dash_array='10', tooltip="Bellman-Ford").add_to(m)
+
+    if path1:
+        folium.Marker(location=nodes[path1[0]], icon=folium.Icon(color='green'), tooltip="Start").add_to(m)
+        folium.Marker(location=nodes[path1[-1]], icon=folium.Icon(color='black'), tooltip="End").add_to(m)
+
+    m.save(output_file)
+    webbrowser.open('file://' + os.path.realpath(output_file))
+
+## Started with Algorithms in C:  Part 5: Graphs by Robert Sedgewick
+## and Data Structures and Algorithms with C++ by Yasin H. Cakal
+def dijkstra(graph, start, end=-1):
+    dist = {node: math.inf for node in graph}
+    prev = {node: -1 for node in graph}
     dist[start] = 0
+    visited = set()
+    queue = [(0, start)]
 
-    # Initiate min heap for processing the shortest distance nodes first
-    pq = [(0.0, start)]
+    while queue:
+        d_u, u = heapq.heappop(queue)
+        if u not in visited:
+            visited.add(u)
 
-    while pq:
-        # Pop and return shortest distance node in min heap
-        currentDist, currentNode = heapq.heappop(pq)
+            for v, w in graph.get(u, []):
+                if dist[u] + w < dist[v]:
+                    dist[v] = dist[u] + w
+                    prev[v] = u
+                    heapq.heappush(queue, (dist[v], v))
 
-        # Check if node has been visited, skip if true
-        if visited[currentNode]:
-            continue
-        visited[currentNode] = True
+    if end != -1:
+        if dist.get(end, math.inf) == math.inf:
+            print("No path.")
+            return [], prev
+        path = buildPath(end, prev)
+        # Above left in for print statements and possible debugging
+        return buildPathEdges(end, prev), prev
 
-        # Relax each neighbor of current node, update if shorter than previous path
-        for v, w in graph.get(currentNode, []):
-            newDist = currentDist + w
-            if newDist < dist[v]:
-                dist[v] = newDist
-                prev[v] = currentNode
-                heapq.heappush(pq, (newDist, v))
+    for u in graph:
+        if dist[u] < math.inf:
+            path = buildPath(u, prev)
+            # Above left in for print statements and possible debugging
 
-    # If yes to specific node path, find path and build edge
-    if target != -1:
-        if target not in dist or dist[target] == math.inf:
-            print(f"No path from {start} to {target}")
-            return []
-
-        path = buildPath(target, prev)
-        print(f"Dijkstra: The shortest path from {start} to {target} is {dist[target]}. Path: ", end="")
-        print(" -> ".join(map(str, reversed(path))))
-        return buildPathEdges(target, prev)
-
-    # If no to specific node path, print shortest distance to all reachable nodes from start node
-    for nodeID, distance in dist.items():
-        if distance == math.inf:
-            continue
-        path = buildPath(nodeID, prev)
-        print(f"Dijkstra: The shortest path from {start} to {nodeID} is {distance}. Path: ", end="")
-        print(" -> ".join(map(str, reversed(path))))
-
-    return []
-
+    return [], prev
 
 # Based on pseudocode featured in slide 46 of Professor Kapoor's Discussion slides for Module 11
 # and Edugator problem 13.6 - "Bellmanfored"
-def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, target: int = -1) -> List[Tuple[int, int]]:
-    import math
+def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, end: int = -1) -> Tuple[List[Tuple[int, int]], Dict[int, int]]:
     edge_list = []
-
-    # from node = u, to node = v, weight = w
-    for u in graph:
-        for v, w in graph[u]:
-            edge_list.append((u, v, w))
+    for source in graph:
+        for destination, weight in graph[source]:
+            edge_list.append((source, destination, weight))
 
     # Initialize distances and paths
     distance = {}
     previous = {}
-
-    nodes = set(graph.keys())
-    for edges in graph.values():
-        for v, _ in edges:
-            nodes.add(v)
-
-    for node in nodes:
+    for node in graph:
         distance[node] = math.inf
         previous[node] = -1
     distance[start] = 0
 
-    # Relax edges repeatedly with early stopping
-    for i in range(len(nodes) - 1):
+    # Relax edges repeatedly
+    for i in range(len(graph) - 1):
         updated = False
-        for u, v, w in edge_list:
-            if distance[u] + w < distance[v]:
-                distance[v] = distance[u] + w
-                previous[v] = u
+        for source, destination, weight in edge_list:
+            if distance[source] != math.inf and distance[source] + weight < distance[destination]:
+                distance[destination] = distance[source] + weight
+                previous[destination] = source
                 updated = True
         if not updated:
-            break  # No update, optimal solution reached
+            print(f"Had to stop early.  i = {i + 1}")
+            break
 
     # Check for negative cycles
-    for u, v, w in edge_list:
-        if distance[u] + w < distance[v]:
+    for source, destination, weight in edge_list:
+        if distance[source] != math.inf and distance[source] + weight < distance[destination]:
             raise ValueError("Negative weight cycle detected.")
 
     # If yes to specific node path, find path and build path edges
-    if target != -1:
-        if distance.get(target, math.inf) == math.inf:
-            print(f'No path found')
-            return []
-        path = buildPath(target, previous)
-        print(f'Bellman-Ford: The shortest path from {start} to {target} is {distance[target]}. Path: ', end="")
-        print(" -> ".join(map(str, reversed(path))))
-        return buildPathEdges(target, previous)
+    if end != -1:
+        if distance.get(end, math.inf) == math.inf:
+            print("No path found")
+            return [], previous
+        path = buildPath(end, previous)
+        print("Bellman-Ford: Distance =", distance[end], "Path:", "->".join(map(str, path)))
+        return buildPathEdges(end, previous), previous
 
-    # Print shortest distance to all reachable nodes from start node
+    # If no to specific node path, print shortest distance to all reachable nodes from start node
     for node in graph:
-        if distance[node] == math.inf:
-            continue
-        path = buildPath(node, previous)
-        print(f'Bellman-Ford: Shortest path from {start} to {node} is {distance[node]}. Path: ', end="")
-        print(" -> ".join(map(str, reversed(path))))
+        if distance[node] < math.inf:
+            path = buildPath(node, previous)
+            print(f"Bellman-Ford: Distance from {start} to {node} = {distance[node]} Path:", "->".join(map(str, path)))
 
-    return []
+    return [], previous
 
 # Creates a graph while reading in CSV file
-def loadEdgesCSV(fileName: str) -> Dict[int, List[Tuple[int, float]]]:
+def loadEdgesCSV(file_name):
     graph = {}
-    try:
-        with open(fileName, newline='') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                try:
-                    fromNode = int(row['u'])
-                    toNode = int(row['v'])
-                    weight = float(row['length'])
-                    if fromNode not in graph:
-                        graph[fromNode] = []
-                    graph[fromNode].append((toNode, weight))
-                    if toNode not in graph:
-                        graph[toNode] = []
-                except:
-                    continue
-    except FileNotFoundError:
-        print(f"Error opening file {fileName}")
-        return {}
+    with open(file_name, newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            u = int(row['u'])
+            v = int(row['v'])
+            w = float(row['length'])
+            if u not in graph:
+                graph[u] = []
+            graph[u].append((v, w))
+            if v not in graph:
+                graph[v] = []
     return graph
-
-# Export the graph in DOT format
-def exportGraphToDOT(graph: Dict[int, List[Tuple[int, float]]], filename: str,
-                     highlightEdges: Set[Tuple[int, int]] = set(),
-                     highlightNodes: Set[int] = set()):
-    with open(filename, "w") as out:
-        out.write("digraph G {\n")
-        out.write("    node [shape=circle, style=filled, fillcolor=white];\n")
-
-        allNodes = set(graph.keys())
-        for neighbors in graph.values():
-            for to, _ in neighbors:
-                allNodes.add(to)
-
-        for node in allNodes:
-            out.write(f'    "{node}"')
-            if node in highlightNodes:
-                out.write(" [style=filled, fillcolor=lightcoral, color=red, penwidth=2]")
-            out.write(";\n")
-
-        for fromNode, neighbors in graph.items():
-            for toNode, weight in neighbors:
-                out.write(f'    "{fromNode}" -> "{toNode}" [label=\"{weight}\"')
-                if (fromNode, toNode) in highlightEdges:
-                    out.write(", color=red, penwidth=2.5")
-                out.write("];\n")
-
-        out.write("}\n")
-    print(f"DOT file with highlighted nodes and edges written to: {filename}")
-
-# Exports a subgraph of the graph in DOT format
-def exportSubgraphDOT(pathEdges: List[Tuple[int, int]],
-                      graph: Dict[int, List[Tuple[int, float]]],
-                      filename: str):
-    pathNodes = set()
-    for fromNode, toNode in pathEdges:
-        pathNodes.add(fromNode)
-        pathNodes.add(toNode)
-
-    with open(filename, "w") as out:
-        out.write("Directed Graph SubgraphPath {\n")
-        out.write("    node [shape=circle, style=filled, fillcolor=lightcoral, color=red, penwidth=2];\n")
-
-        for node in pathNodes:
-            out.write(f'    "{node}";\n')
-
-        for fromNode, toNode in pathEdges:
-            weight = next((w for neighbor, w in graph[fromNode] if neighbor == toNode), 0.0)
-            out.write(f'    "{fromNode}" -> "{toNode}" [label="{weight}", color=red, penwidth=2.5];\n')
-
-        out.write("}\n")
-    print(f"Subgraph DOT file written to: {filename}")
 
 def main():
     edgeFile = "edges.csv"
+    nodeFile = "nodes.csv"
     graph = loadEdgesCSV(edgeFile)
-
     if not graph:
-        print("Graph loading failed or file is empty.")
+        print("The graph is empty.")
         return
 
-    algorithm = input("Which algorithm would you like, Dijkstra or Bellman-Ford? (d/b): ")
-    if algorithm.lower() != 'd' and algorithm.lower() != 'b':
-        print('Choice not supported.')
+    algorithm = input("Dijkstra, Bellman-Ford, or Compare? (D/B/C): ").upper()
+    if algorithm not in ['D', 'B', 'C']:
+        print("Those are not one of the options.")
         return
 
+    start = int(input("Start node: "))
+    choice = input("Full or end node? (F/E): ").upper()
 
-    startNode = int(input("Enter start node ID: "))
-    if startNode not in graph:
-        print("Start node not found in graph.")
-        return
+    if choice == 'E':
+        end = int(input("End node: "))
+        if algorithm == 'D':
+            dijkstra_edges, dijkstra_prev = dijkstra(graph, start, end)
+            dijkstra_path = buildPath(end, dijkstra_prev)
+            pathOnMap(nodeFile, dijkstra_path)
+        elif algorithm == 'B':
+            bellman_edges, bellman_prev = bellman_ford(graph, start, end)
+            bellman_path = buildPath(end, bellman_prev)
+            pathOnMap(nodeFile, bellman_path)
+        elif algorithm == 'C':
+            dijkstra_edges, dijkstra_prev = dijkstra(graph, start, end)
+            dijkstra_path = buildPath(end, dijkstra_prev)
 
-    choice = input("Do you want to find a path to a specific node? (y/n): ")
-    if choice.lower() != 'y' and choice.lower() != 'n':
-        print('Choice not supported.')
-        return
+            bellman_edges, bellman_prev = bellman_ford(graph, start, end)
+            bellman_path = buildPath(end, bellman_prev)
 
-    try:
-        if choice.lower() == 'y':
-            targetNode = int(input("Enter target node ID: "))
-            if algorithm.lower() == 'd':
-                pathEdges = dijkstra(graph, startNode, targetNode)
-            elif algorithm.lower() == 'b':
-                pathEdges = bellman_ford(graph, startNode, targetNode)
-            exportSubgraphDOT(pathEdges, graph, "subgraph.dot")
-
-            highlightSet = set(pathEdges)
-            pathNodes = {u for edge in pathEdges for u in edge}
-            exportGraphToDOT(graph, "graph.dot", highlightSet, pathNodes)
-
-            print("\nRendered files:")
-            print("  subgraph.dot   -> contains only shortest path (fast).")
-            print("  graph.dot      -> full graph with highlighted path (slow).")
+            comparePathsOnMap(nodeFile, dijkstra_path, bellman_path)
+    elif choice == 'F':
+        if algorithm == 'D':
+            dijkstra(graph, start)
+        elif algorithm == 'B':
+            bellman_ford(graph, start)
         else:
-            if algorithm.lower() == 'd':
-                dijkstra(graph, startNode)
-            elif algorithm.lower() == 'b':
-                bellman_ford(graph, startNode)
-            exportGraphToDOT(graph, "graph.dot")
-            print("\nRendered file: graph.dot")
-    except ValueError as e:
-        print(f"An error has occurred: {e}")
-
+            print("Compare only works with specific start and end nodes.")
+    else:
+        print("That's not valid input.")
 
 if __name__ == "__main__":
     main()
