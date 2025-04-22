@@ -12,7 +12,8 @@ def buildPathEdges(node, prev):
     while node != -1 and prev.get(node, -1) != -1:
         pathEdges.append((prev[node], node))
         node = prev[node]
-    return pathEdges
+    #return pathEdges changd by trinity
+    return list(reversed(pathEdges))
 
 # Build a path as a list of nodes from start to the nodeID
 def buildPath(nodeID, previous):
@@ -111,17 +112,17 @@ def dijkstra(graph, start, end=-1):
     if end != -1:
         if dist.get(end, math.inf) == math.inf:
             print("No path.")
-            return [], prev
+            return []
         path = buildPath(end, prev)
         # Above left in for print statements and possible debugging
-        return buildPathEdges(end, prev), prev
+        return buildPathEdges(end, prev)
 
     for u in graph:
         if dist[u] < math.inf:
             path = buildPath(u, prev)
             # Above left in for print statements and possible debugging
 
-    return [], prev
+    return []
 
 # Based on pseudocode featured in slide 46 of Professor Kapoor's Discussion slides for Module 11
 # and Edugator problem 13.6 - "Bellmanfored"
@@ -160,10 +161,10 @@ def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, end: int
     if end != -1:
         if distance.get(end, math.inf) == math.inf:
             print("No path found")
-            return [], previous
+            return []
         path = buildPath(end, previous)
         print("Bellman-Ford: Distance =", distance[end], "Path:", "->".join(map(str, path)))
-        return buildPathEdges(end, previous), previous
+        return buildPathEdges(end, previous)
 
     # If no to specific node path, print shortest distance to all reachable nodes from start node
     for node in graph:
@@ -171,7 +172,7 @@ def bellman_ford(graph: Dict[int, List[Tuple[int, float]]], start: int, end: int
             path = buildPath(node, previous)
             print(f"Bellman-Ford: Distance from {start} to {node} = {distance[node]} Path:", "->".join(map(str, path)))
 
-    return [], previous
+    return []
 
 # Creates a graph while reading in CSV file
 def loadEdgesCSV(file_name):
